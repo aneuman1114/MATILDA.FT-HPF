@@ -36,7 +36,7 @@ public:
     float* d_u, * d_f, * d_vir;
     cufftComplex* d_u_k, * d_f_k, * d_vir_k, * d_master_u_k, * d_master_f_k, * d_master_vir_k;
 
-    double sigma_squared, Rp, U, initial_prefactor, final_prefactor;
+    double sigma_squared, Rp, Rp2, U, initial_prefactor, final_prefactor;
     bool ramp = false;
     bool allocated = false;
 

@@ -30,7 +30,8 @@ class Box {
         thrust::device_vector<float> d_Lh;
 
         double V;                           // Box volume
-        int M;                              // Total number of grid points
+        double Vfree;                       // Free volume of box (volume available for polymers)
+	int M;                              // Total number of grid points
         double gvol;                        // Grid volume
         int M_Grid, M_Block;                // GPU Configuration parameters
         int logFreq;                        // Frequency to print energies

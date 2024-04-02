@@ -26,6 +26,8 @@ class FTS_Molec {
     public:
         std::string molec_type;     // what kind of molecule (linear, star, bottle brush)
         
+	// contribution to Hamiltonian for particle
+	std::complex<double> Hterm;
         // Smearing parameters
         int doSmear;                // flag for whether smearing is implemented
         std::string smearStyle;     // name of smearing function

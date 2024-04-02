@@ -153,16 +153,13 @@ Compute* ComputeFactory(istringstream &iss){
 	if (s1 == "avg_s_k"){
 		return new Avg_sk(iss);
 	}
-    else if (s1 == "avg_rho") {
-        return new Avg_rho(iss);
-    }
-	else if (s1 == "s_k"){
+	if (s1 == "s_k"){
 		return new Sk(iss);
 	}
-	else if (s1 == "widom"){
+	if (s1 == "widom"){
 		return new Widom(iss);
 	}
-	else if (s1 == "chemical_potential"){
+	if (s1 == "chemical_potential"){
 		return new ChemPot(iss);
 	}
 	

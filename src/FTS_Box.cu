@@ -37,34 +37,8 @@ void FTS_Box::doTimeStep(int step) {
     for ( int i=0 ; i<Molecs.size(); i++ ) {
         int ti = time(0);
         Molecs[i]->calcDensity();
+ 
         moleculeTimer += time(0) - ti;
-    }
-
-
-    // If using predictor-corrector scheme, repeat above with predicted
-    // densities and forces
-    if ( PCflag == 1 ) {
-        // Update the potential fields with corrector step
-        for ( int i=0 ; i<Potentials.size(); i++ ) {
-            int ti = time(0);
-            Potentials[i]->correctFields();
-            fieldUpdateTimer += time(0) - ti;
-        }
-        
-        // Zero the species densities and rebuilt the fields
-        for ( int i=0 ; i<Species.size(); i++ ) {
-            int ti = time(0);
-            Species[i].zeroDensity();
-            Species[i].buildPotentialField();
-            speciesTimer += time(0) - ti;
-        }
-
-        // Recalculate all density fields, including populating species densities
-        for ( int i=0 ; i<Molecs.size(); i++ ) {
-            int ti = time(0);
-            Molecs[i]->calcDensity();
-            moleculeTimer += time(0) - ti;
-        }        
     }
 
 
@@ -79,7 +53,7 @@ void FTS_Box::doTimeStep(int step) {
         }
     }
     
-    // Write the species densities
+    // Write the species fields
     if ( chemFieldFreq > 0 && step % chemFieldFreq == 0 ) {
         for ( int i=0 ; i<Potentials.size(); i++ ) {
             Potentials[i]->writeFields(i);
@@ -93,6 +67,7 @@ void FTS_Box::doTimeStep(int step) {
     // Write log data
     if ( step % logFreq == 0 ) {
         writeData(step);
+	writeFields();
     }
 
 }
@@ -117,9 +92,15 @@ void FTS_Box::writeData(int step) {
     }
 
     for ( int i=0 ; i<Molecs.size(); i++ ) {
-        OTP << -Molecs[i]->nmolecs*log(Molecs[i]->Q) << " " ;
-        std::cout << -Molecs[i]->nmolecs*log(Molecs[i]->Q) << " " ;
-    }
+	if ( Molecs[i]->molec_type == "linear" ) {           
+	  OTP << -Molecs[i]->nmolecs*log(Molecs[i]->Q) << " " ;
+          std::cout << -Molecs[i]->nmolecs*log(Molecs[i]->Q) << " " ;
+    } 
+	else if (Molecs[i]->molec_type == "particle" ) {       
+           OTP << Molecs[i]->Hterm << " " ;
+           std::cout << Molecs[i]->Hterm << " " ;
+     }
+}
 
     OTP << std::endl;
     std::cout << std::endl;
@@ -129,8 +110,11 @@ void FTS_Box::writeData(int step) {
 
 
 void FTS_Box::initializeSim() {
-    
-    Potentials[0]->wpl = Potentials[0]->d_wpl;
+    for (int i = 0; i < Potentials.size(); i++ ) {
+ 	if( Potentials[i]->printStyle() == "Helfand" ) {
+    		Potentials[i]->wpl = Potentials[i]->d_wpl;
+	}
+    }
 
     
     // Zero the species densities
@@ -217,7 +201,6 @@ void FTS_Box::readInput(std::ifstream& inp) {
     densityFieldFreq = 0;
     Hold = 1.0E8;       // Arbitrary large value for old Hamiltonian
     tolerance = 1.0E-5; // Arbitrary small value for convergance tolerance
-    PCflag = 0;
 
     std::string line, firstWord;
 
@@ -248,7 +231,8 @@ void FTS_Box::readInput(std::ifstream& inp) {
                     V *= L[j];
                     if ( Nx[0] > 0 ) { dx[j] = L[j] / double(Nx[j]); }
                 }
-            }
+        	Vfree = V;    
+	}
 
             else if ( firstWord == "chemFieldFreq" || firstWord == "chemfieldfreq" ) { iss >> chemFieldFreq; }
 
@@ -302,10 +286,7 @@ void FTS_Box::readInput(std::ifstream& inp) {
             }
 
             else if (firstWord == "randSeed" || firstWord == "RAND_SEED") {
-                std::cout << idum << " Before " << std::endl;
-                fflush(stdout);
                 iss >> idum;
-                std::cout << idum << " after " << std::endl;
             }
 
             else if (firstWord == "rho0") {
@@ -358,8 +339,7 @@ void FTS_Box::readInput(std::ifstream& inp) {
 
     double Rg = pow( (Nr-1.0)/6.0, 0.5);
     if ( rho0 > 0 ) {
-        C = rho0/Nr;
-        for ( int j=0; j<Dim ; j++ ) C *= Rg;
+        C = rho0/Nr * Rg * Rg * Rg;
         std::cout << "Using Nr = " << Nr << ", computed C = " << C << std::endl;
     }
     else if ( C > 0 ) {
@@ -460,12 +440,26 @@ void FTS_Box::computeHamiltonian() {
         Heff += Potentials[i]->calcHamiltonian();
     }
 
-    // accumulate the -n*log(Q) terms
     for ( int i=0 ; i<Molecs.size(); i++ ) {
-        Heff += (std::complex<double>)( -Molecs[i]->nmolecs * log( Molecs[i]->Q));
-    }
-}
+    // accumulate the -n*log(Q) terms
+	if ( Molecs[i]->molec_type == "linear" ) {
+        	Heff += (std::complex<double>)( -Molecs[i]->nmolecs * log( Molecs[i]->Q));
+	        //std::cout << "Q Molec" << i << Molecs[i]->Q << std::endl;	
+                //std::cout << "Molecule  " << i << " -n log(Q) Hamiltonian contribution" <<  (std::complex<double>)( -Molecs[i]->nmolecs * log( Molecs[i]->Q)) <<  std::endl;
+ 	   }
+    // accumulate NP density dependent term -I * C *integral( (1 - rhoNP[i])*wpl))
+	else if (Molecs[i]->molec_type == "particle" ) {
+		// std::cout << "Particle H: " << Molecs[i]->Hterm << std::endl;
+		Heff += Molecs[i]->Hterm;
+	   }	
+	}
 
+
+
+
+
+
+}
 void FTS_Box::initSmearGaussian(
     thrust::host_vector<thrust::complex<double>> &smear, // Stores the smearing function
     const double amplitude, // prefactor of smearing function, generally 1.0
@@ -490,8 +484,12 @@ void FTS_Box::writeSpeciesDensityFields() {
 
 void FTS_Box::writeFields() {
     writeSpeciesDensityFields();
-    Potentials[0]->wpl = Potentials[0]->d_wpl;
-    writeTComplexGridData("wpl.dat", Potentials[0]->wpl);
+    for (int i = 0; i < Potentials.size(); i++ ) { 
+        if( Potentials[i]->printStyle() == "Helfand" ) { 
+                Potentials[i]->wpl = Potentials[i]->d_wpl;
+    		writeTComplexGridData("wpl.dat", Potentials[i]->wpl);
+        }
+    }   
 }
 
 

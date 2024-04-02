@@ -3,7 +3,7 @@
 #
 ####################################################
 # Modify the line below to point to the CUDA library
-CUDA_LOC = /usr/local/cuda
+CUDA_LOC = /apps/anvilgpu/external/apps/cuda-toolkit/11.4.2
 
 
 
@@ -17,7 +17,7 @@ EIGEN_LOC = ../include/eigen-3.4.0
 CFLAGS = -std=c++14 -rdc=true -O3 -I${CUDA_LOC}/include -Wno-deprecated-gpu-targets
 CPPFLAGS = -I${EIGEN_LOC} --expt-relaxed-constexpr
 
-#CFLAGS = -std=c++11 -rdc=true -arch=sm_37 -dlto -O3 -I${CUDA_LOC}/include -lineinfo -g 
+#CFLAGS = -std=c++14 -rdc=true -arch=sm_37 -dlto -O3 -I${CUDA_LOC}/include -lineinfo -g 
 
 LIBS = -lm -lcudart -lcufft -L${CUDA_LOC}/lib
 
@@ -26,7 +26,7 @@ SRCS = array_utils.cu bonds.cu calc_properties.cu config_utils.cu cuda_random_po
 	device_array_utils.cu device_bonds.cu device_comm_utils.cu \
 	device_grid_utils.cu device_utils.cu  field_component.cu forces.cu \
 	initialize.cu integ_utils.cu io_utils.cu main.cu potential.cu \
-	potential_bias_field.cu potential_gaussian.cu pbc_utils.cu read_input.cu \
+	potential_fieldphases.cu potential_gaussian.cu pbc_utils.cu read_input.cu \
 	potential_erf.cu reduce_utils.cu update_potentials.cu device_GJF_integrator.cu \
 	potential_charges.cu potential_gaussian_erf.cu \
 	Compute.cu angles.cu device_angles.cu random.cu grid_utils.cu \
@@ -41,8 +41,8 @@ SRCS = array_utils.cu bonds.cu calc_properties.cu config_utils.cu cuda_random_po
 	Compute_widom.cu Compute_avg_sk.cu Compute_sk.cu Compute_chempot.cu\
 	tensor_potential.cu tensor_potential_MaierSaupe.cu device_ms_utils.cu \
 	Box.cu FTS_Box.cu fts_species.cu fts_potential.cu \
-	fts_potential_helfand.cu fts_potential_flory.cu fts_molecule.cu fts_molecule_linear.cu \
-	fft_wrapper.cu run_fts_sim.cu fts_updateSchemes.cu Compute_avg_rho.cu \
+	fts_potential_helfand.cu fts_potential_flory.cu fts_potential_particle.cu fts_molecule.cu fts_molecule_linear.cu fts_molecule_particle.cu\
+	fft_wrapper.cu run_fts_sim.cu fts_updateSchemes.cu \
 
 SRCS_C = gsd.c
 SRCS_CPP = tensor_potential_MaierSaupe_eigenvalue.cpp

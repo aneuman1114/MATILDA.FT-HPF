@@ -8,10 +8,16 @@
 
 using namespace std;
 
+// My general idea is just adding an erf function that can take into account 2 particle sizes
+// Then, adding in multiple erf potentials for each pair-wise interaction 
+// i.e. - if we want 3 particle sizes in the box, we define 
+// erf between 1-2, between 2-3, and between 1-3. 
+
+// Added a new constant float to init_device_erf to take in Rp2
 __global__ void init_device_erf(float*,	float, float, float, 
-	const float*, const float*, const float*, 
+	const float*, const float*, const float*, const float*, 
 	const int, const int*, const int);
-__global__ void init_device_erf_kspace(cufftComplex*, cufftComplex*, float, float, float, 
+__global__ void init_device_erf_kspace(cufftComplex*, cufftComplex*, float, float, float,float, 
 	const float*, const int, const int*, const int);
 __global__ void d_real2complex(float*, cufftComplex*, int);
 __global__ void d_kSpaceMakeForce(cufftComplex*, cufftComplex*,
@@ -28,13 +34,13 @@ void Erf::Initialize() {
 	fflush(stdout);
 
     Initialize_Potential();
-
-	init_device_erf_kspace<<<M_Grid,M_Block>>>(this->d_u_k, this->d_f_k, initial_prefactor, sigma_squared, Rp,
+// Added Rp2 in here
+	init_device_erf_kspace<<<M_Grid,M_Block>>>(this->d_u_k, this->d_f_k, initial_prefactor, sigma_squared, Rp, Rp2,
 		d_L,M, d_Nx, Dim);
-
+// Added Rp2 in here, same function as before?
 	init_device_erf_kspace<<<M_Grid,M_Block>>>(
         this->d_master_u_k, this->d_master_f_k,
-        1.0f, sigma_squared, Rp, d_L, M, d_Nx, Dim);
+        1.0f, sigma_squared, Rp, Rp2, d_L, M, d_Nx, Dim);
 
 	cufftExecC2C(fftplan, this->d_u_k, d_cpx1, CUFFT_INVERSE);
 	d_complex2real << <M_Grid, M_Block >> > (d_cpx1, this->d_u, M);
@@ -49,7 +55,8 @@ void Erf::Initialize() {
 
 	float k2, kv[3], k;
 	float temp;
-	
+        float temp2;
+// added second temp variable here to account for FFT of step function of second particle	
 
 	for (int i = 0; i < M; i++) {
 		k2 = get_k(i, kv, Dim);
@@ -59,17 +66,20 @@ void Erf::Initialize() {
 			this->u_k[i] = initial_prefactor * // prefactor
 				// exp(-k2 * sigma_squared * 0.5f) * //Gaussian contribution = 1
 				PI4 * Rp * Rp * Rp / 3 *   // step function contribution for 1
-				PI4 * Rp * Rp * Rp / 3;   // step function contribution for 2
+				PI4 * Rp2 * Rp2 * Rp2 / 3;   // step function contribution for 2
+// Changed step function for 2 to use Rp2
+
 		}
 		else
 		{
 			//FFT of step function 
 			temp = PI4 * (sin(Rp * k) - Rp * k * cos(Rp * k)) / (k2 * k);
-
+                        temp2 = PI4 * (sin(Rp2 * k) - Rp2 * k * cos(Rp2 * k))/ (k2 * k);
+// Using temp2 here to incorporate radius of particle 2
 			this->u_k[i] = initial_prefactor * // prefactor
 				exp(-k2 * sigma_squared * 0.5f) * //Gaussian contribution of both
 				temp * // step function for 1
-				temp; // step function for the other
+				temp2; // step function for the other - using temp2 for particle 2 here
 		}
 
 		for (int j = 0; j < Dim; j++) {
@@ -91,9 +101,10 @@ Erf::Erf(istringstream &iss) : Potential{iss} {
 	readRequiredParameter(iss, type2);
 	readRequiredParameter(iss, initial_prefactor);
 	readRequiredParameter(iss, Rp);
+	readRequiredParameter(iss, Rp2); // added new read in parameter for Rp2
 	readRequiredParameter(iss, sigma_squared);
 
-	// iss >> type1 >> type2 >> initial_prefactor >> Rp >> sigma_squared;
+	// iss >> type1 >> type2 >> initial_prefactor >> Rp >> Rp2 >>  sigma_squared;
 
 	type1 -= 1;
 	type2 -= 1;
@@ -120,8 +131,10 @@ Erf::~Erf() {
 /* This code defines the erf function on the device,
 which will then be Fourier transformed to get the force.
 */
+
+// Added in Rp2 into this function
 __global__ void init_device_erf(float* u,
-	float Ao, float Rp, float xi,
+	float Ao, float Rp, float Rp2, float xi,
 	const float* dL, const float* dLh, const float* ddx,
 	const int dM, const int* dNx, const int dDim) {
 
@@ -141,7 +154,7 @@ __global__ void init_device_erf(float* u,
 	float arg = (mdr - Rp) / xi;
 	u[ind] = Ao * (1.0f - erff(arg));
 }
-
+// Need to fix the rest of this function....
 
 /* This code defines the convolved erf function on the device in Fourier space.
  * We have fourier the Gaussian and step function contributions for each erf func.
@@ -149,8 +162,10 @@ __global__ void init_device_erf(float* u,
  * 1D definition of convolv of box with gauss to get erfc and 
  * the definition we used in our papers
 */
+
+// Added in Rp2 here
 __global__ void init_device_erf_kspace(cufftComplex* uk,
-	cufftComplex* fk, float Ao, float sigma2, float Rp,
+	cufftComplex* fk, float Ao, float sigma2, float Rp, float Rp2,
 	const float* dL, const int dM, const int* dNx, const int dDim) {
 
 	const int ind = blockIdx.x * blockDim.x + threadIdx.x;
@@ -166,18 +181,21 @@ __global__ void init_device_erf_kspace(cufftComplex* uk,
 		uk[ind].x = Ao *				// prefactor
 			//exp(-k2 * sigma_squared * 0.5f )* //Gaussian contribution = 1
 			PI4 * Rp * Rp * Rp / 3*   // step function contribution for 1
-			PI4 * Rp * Rp * Rp / 3;   // step function contribution for 2
-	}
+			PI4 * Rp2 * Rp2 * Rp2 / 3;   // step function contribution for 2
+// Changed second step function to take into account Rp2	
+}
 	else
 	{
 		//FFT of step function 
 		float temp = PI4 * (sin(Rp * k) - Rp * k * cos(Rp * k)) / (k2 * k);
-
+                float temp2 = PI4 * (sin(Rp2 *k) - Rp2 * k * cos(Rp2 *k))/(k2*k);
+// Incorporated Rp2 into temp2! 
 		uk[ind].x = Ao *				//prefactor
 			exp(-k2 * sigma2 * 0.5f) * //Gaussian contribution of both
 			temp * // step function for 1
-			temp ; // step function for the other
-	}
+			temp2 ; // step function for the other
+// Using second radius here!	
+}
 	uk[ind].y = 0.f;
 
     for (int j = 0; j < dDim; j++) {

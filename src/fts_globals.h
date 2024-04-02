@@ -9,6 +9,7 @@
 #include "fts_type.h"
 #include "fts_molecule.h"
 #include "fts_molecule_linear.h"
+#include "fts_molecule_particle.h"
 
 #ifndef MAIN
 extern

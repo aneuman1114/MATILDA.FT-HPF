@@ -5,6 +5,7 @@
 #include "fts_potential.h"
 #include "fts_potential_helfand.h"
 #include "fts_potential_flory.h"
+#include "fts_potential_particle.h"
 #include "include_libs.h"
 #include <istream>
 void die(const char*);
@@ -32,7 +33,9 @@ FTS_Potential* FTS_PotentialFactory(std::istringstream &iss, FTS_Box* box) {
     else if ( s1 == "Flory" || s1 == "flory" ) {
         return new PotentialFlory(iss, box);
     }
-	
+    else if (s1 == "Particle" || s1 == "particle" ) {
+	return new PotentialParticle(iss, box);
+    }
 	else {
         std::string s2 = s1 + " is not a valid FTS_Potential"; 
         die(s2.c_str());

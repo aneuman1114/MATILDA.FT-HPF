@@ -4,6 +4,7 @@
 
 #include "fts_molecule.h"
 #include "fts_molecule_linear.h"
+#include "fts_molecule_particle.h"
 #include "include_libs.h"
 #include "FTS_Box.h"
 
@@ -15,7 +16,6 @@ FTS_Molec::FTS_Molec(std::istringstream &iss, FTS_Box* bx) {
     iss >> molec_type;
     mybox = bx;
 
-    iss >> phi;
 
     int M = mybox->M;
 
@@ -37,7 +37,10 @@ FTS_Molec* FTS_MolecFactory(std::istringstream &iss, FTS_Box* box) {
 	if (s1 == "linear"){
 		return new LinearMolec(iss, box);
     }
-	
+        if (s1 == "particle"){
+		std::cout << "foundparticle" << std::endl;
+		return new ParticleMolec(iss, box);	
+	}
 	else {
         std::string s2 = s1 + " is not a valid FTS_Molec"; 
         die(s2.c_str());

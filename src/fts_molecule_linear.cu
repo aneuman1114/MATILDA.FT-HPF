@@ -22,7 +22,7 @@ LinearMolec::LinearMolec(std::istringstream& iss, FTS_Box* p_box) : FTS_Molec(is
     // Ns for block 2, type for block 2...
     // Repeat for number of blocks
 
-
+    iss >> phi;
     iss >> numBlocks;
 
     Ntot = 0;
@@ -44,6 +44,18 @@ LinearMolec::LinearMolec(std::istringstream& iss, FTS_Box* p_box) : FTS_Molec(is
 
         Ntot += N[j];
     }
+    // moved integer species determination here as it is required for resume
+    
+    // Determine integer block Species
+    for ( int j=0 ; j<numBlocks; j++ ) {
+        for ( int i=0 ; i<mybox->Species.size(); i++ ) {
+            if ( blockSpecies[j] == mybox->Species[i].fts_species ) {
+                intSpecies[j] = i;
+            }
+        }
+    }
+
+    d_intSpecies = intSpecies;
 
     if ( iss.tellg() != -1 ) {
         std::string s1;
@@ -66,6 +78,32 @@ LinearMolec::LinearMolec(std::istringstream& iss, FTS_Box* p_box) : FTS_Molec(is
                 d_smearFunc = smearFunc;
             }
         }
+	// User input required is file name for each block in molecule
+	//ex: for BCP, input 2 field files, in the same order you input the blocks
+	else if (s1 == "resume") {
+		// loop through blocks
+		for (int j=0 ; j<numBlocks; j++ ) {
+
+	                iss >> s1; 
+	                std::ifstream in2(s1);
+                	if (not in2.is_open()){
+                        	std::cout << "File" << s1 << "does not exist." << std::endl;
+                        	die("");
+                	}
+                	thrust::host_vector<thrust::complex<double>>Wres(mybox->M);    
+                	double x;
+                	double y;
+                	double z;
+                	double rVal;
+                	double iVal;
+                	for (int i = 0; i< mybox->M; i++){
+                        	in2 >> x >> y >> z >> rVal >> iVal;
+                        	Wres[i] = std::complex<double>(rVal, iVal);
+                	}
+			// assign field to appropriate species for the block
+                	mybox->Species[ intSpecies[j] ].d_w = Wres; 
+                }
+        }
     }
 
     // Copy block lengths to device
@@ -83,21 +121,10 @@ LinearMolec::LinearMolec(std::istringstream& iss, FTS_Box* p_box) : FTS_Molec(is
              (N[j] != N[numBlocks-1-j]) )  {                    // Block lengths are unequal
              
             isSymmetric = false;
+	    std::cout <<   "Polymer is symmetric "  << std::endl;
             break;
         }
     }
-
-    // Determine integer block Species
-    for ( int j=0 ; j<numBlocks; j++ ) {
-        for ( int i=0 ; i<mybox->Species.size(); i++ ) {
-            if ( blockSpecies[j] == mybox->Species[i].fts_species ) {
-                intSpecies[j] = i;
-            }
-        }
-    }
-
-    d_intSpecies = intSpecies;
-
 
 
     // Initialize bond potential
@@ -348,8 +375,9 @@ void LinearMolec::calcDensity() {
 // Once smearing is implemented, smear functions need to 
 // be included in the linear coefficients
 void LinearMolec::computeLinearTerms() {
-    nmolecs = mybox->C * phi * mybox->V * mybox->Nr / (double(Ntot));
-
+// incorporating NP volume into this by using Vfree
+    nmolecs = mybox->C * phi * mybox->Vfree * mybox->Nr / (double(Ntot));
+    std::cout <<   "Number of molecules " << nmolecs << std::endl;
     double alpha = double(Ntot) / double(mybox->Nr);
 
     // n*Ntot**2 / (Nr * V)

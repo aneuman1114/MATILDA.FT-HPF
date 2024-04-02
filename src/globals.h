@@ -15,7 +15,7 @@
 #include <cufftXt.h>
 #include "field_component.h"
 #include "potential_gaussian.h"
-#include "potential_bias_field.h"
+#include "potential_fieldphases.h"
 #include "potential_erf.h"
 #include "potential_gaussian_erf.h"
 #include "potential_charges.h"
@@ -27,7 +27,6 @@
 #include "Compute.h"
 #include "Compute_widom.h"
 #include "Compute_avg_sk.h"
-#include "Compute_avg_rho.h"
 #include "Compute_sk.h"
 #include "Compute_chempot.h"
 #include "Extraforce.h"
@@ -190,7 +189,7 @@ FieldComponent* Components;
 #ifndef MAIN
 extern
 #endif
-std::vector<BiasField> Fields;
+std::vector<FieldPhase> Fields;
 
 #ifndef MAIN
 extern
